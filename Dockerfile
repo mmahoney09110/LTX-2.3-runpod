@@ -1,5 +1,30 @@
 # clean base image containing only comfyui, comfy-cli and comfyui-manager
-FROM runpod/worker-comfyui:5.5.1-base
+FROM runpod/worker-comfyui:5.7.1-base-cuda12.8.1
+
+# build tools
+RUN apt-get update && apt-get install -y \
+    gcc g++ build-essential \
+    cuda-toolkit-12-8 \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Clone and build SageAttention for Blackwell SM120
+RUN git clone https://github.com/thu-ml/SageAttention.git /tmp/SageAttention && \
+    TORCH_CUDA_ARCH_LIST="12.0" pip install ninja && \
+    TORCH_CUDA_ARCH_LIST="12.0" pip install -e /tmp/SageAttention --no-build-isolation
+    
+# Update ComfyUI and install missing dependencies
+RUN cd /comfyui && \
+    git fetch --all && \
+    git checkout master && \
+    git pull origin master && \
+    pip install --no-cache-dir -r requirements.txt
+
+# override the handler
+COPY handler.py /handler.py
+
+#override with --use-sage-attention
+COPY start.sh /src/start.sh
 
 # Install curl
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
